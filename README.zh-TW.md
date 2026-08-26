@@ -128,6 +128,20 @@ Widget 會繼續使用 Scriptable Keychain 裡已保存的 token。
 
 點擊 Widget 會開啟 ChatGPT 的 Codex usage 頁面。
 
+## Widget 更新限制
+
+Scriptable 無法精準控制 iOS 主畫面 Widget 的更新排程。[`refreshAfterDate`](https://docs.scriptable.app/listwidget/#refreshafterdate) 只代表 Widget **最早可以再次被刷新**的時間，不是固定週期 timer；Scriptable 官方文件也明確指出，不保證會在指定時間準時刷新。
+
+本專案在每次成功執行後，把 `refreshAfterDate` 設為約 15 分鐘後。實際上代表：
+
+- Widget 不會主動要求在這個時間之前刷新
+- **不代表每 15 分鐘一定會更新一次**，也不保證會在第 15 分鐘準時更新
+- 實際排程部分由 iOS / iPadOS 決定
+- 裝置低電量、或使用者很少查看這個 Widget 時，更新可能被延後
+- Footer 顯示的時間是 Widget 最近一次成功執行的時間，可以用來判斷目前畫面的 quota 資料有多新
+
+在 Scriptable App 裡手動執行 script 會立即重新抓資料並顯示在 preview；但主畫面 Widget 本身仍受 iOS 的 Widget 更新排程控制。
+
 ## Reset 券
 
 Footer 會顯示例如：

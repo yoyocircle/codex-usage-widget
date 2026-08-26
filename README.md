@@ -128,6 +128,20 @@ The script requests a refresh no earlier than every 15 minutes. iOS ultimately d
 
 Tapping the widget opens the Codex usage page on ChatGPT.
 
+## Widget refresh limitations
+
+Scriptable cannot schedule Home Screen widget updates at an exact interval. Its [`refreshAfterDate`](https://docs.scriptable.app/listwidget/#refreshafterdate) property specifies only the **earliest date at which the widget may be refreshed again**. It is not a timer, and Scriptable explicitly notes that a refresh at the requested date is not guaranteed.
+
+This project sets `refreshAfterDate` to approximately 15 minutes after each successful run. In practice:
+
+- the widget should not request another refresh before that time
+- it is **not guaranteed to refresh every 15 minutes** or exactly at the requested time
+- the actual refresh schedule is partly controlled by iOS/iPadOS
+- refreshes may be delayed when the device is low on battery or when the widget is rarely viewed
+- the time shown in the footer is the time of the widget's most recent successful execution, so it can be used to judge how fresh the displayed quota is
+
+Running the script manually inside Scriptable fetches current data for the preview, but the Home Screen widget still follows the operating system's widget refresh scheduling.
+
 ## Reset credits
 
 The footer shows something like:
