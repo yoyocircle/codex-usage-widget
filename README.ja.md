@@ -8,6 +8,7 @@ iOS の [Scriptable](https://scriptable.app/) で OpenAI Codex の使用量を�
 
 - 現在の短時間ウィンドウ（例: 5 時間）の残りクォータ
 - Weekly の残りクォータ
+- usage endpoint が返す場合は Luna Reserve の残りクォータ
 - 各ウィンドウのリセット時刻
 - 経過時間に対して使用量が速すぎないかを示すペースマーカー
 - 利用可能な rate-limit reset credits
@@ -33,11 +34,40 @@ Reset 3d 12h
 
 塗りつぶしの終端がマーカーより **左** にある場合、経過時間に対して使用ペースが速いことを意味します。マーカーより右まで伸びている場合は、均等ペースより余裕があります。
 
-色も使用ペースを示します：
+通常の Codex quota row では、色も使用ペースを示します：
 
 - 緑: 均等ペース以下
 - オレンジ: 少しペース超過
 - 赤: 大幅なペース超過、または残り 10% 以下
+
+## Luna Reserve
+
+`/backend-api/wham/usage` の `additional_rate_limits` に対象エントリが含まれる場合、通常の短時間ウィンドウと Weekly の後に 3 行目として Luna Reserve を表示します。
+
+次のどちらかが一致すると Luna Reserve と判定します：
+
+```text
+limit_name        = gpt-reserve
+normal_model_slug = gpt-5.6-luna
+```
+
+Luna row は通常 quota の pace 色ではなく、ChatGPT の表示に近い専用スタイルを使います：
+
+- 黄色の `moon.fill` アイコン
+- progress bar の fill は常に `#FFD240`
+- 残りパーセントの文字色は通常の foreground color
+- 既存の pace marker はそのまま表示
+- reset time は Luna 自身の `primary_window` から計算
+
+例：
+
+```text
+🌙 Luna Reserve                16%
+███        ┃────────────────
+Reset 6d 21h
+```
+
+`additional_rate_limits` に一致する項目がなければ Luna row は表示されません。判定に `rate_limit_upsell.banner_type` は使用しません。
 
 ## 必要なもの
 
@@ -188,7 +218,7 @@ POST https://auth.openai.com/oauth/token
 GET  https://chatgpt.com/backend-api/wham/usage
 ```
 
-`/wham/usage` は OpenAI が公開仕様として文書化している API ではないため、予告なく変更される可能性があります。
+`/wham/usage` は OpenAI が公開仕様として文書化している API ではないため、予告なく変更される可能性があります。Luna Reserve の検出に使う `additional_rate_limits` の構造や存在自体も変更される可能性があります。
 
 ## Disclaimer
 

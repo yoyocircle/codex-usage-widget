@@ -8,6 +8,7 @@ It displays:
 
 - remaining quota for the current short window (for example, 5 hours)
 - remaining weekly quota
+- Luna Reserve quota when the usage endpoint reports it
 - reset time for each window
 - a visual pace marker showing whether usage is running ahead of elapsed time
 - available rate-limit reset credits
@@ -33,11 +34,40 @@ Reset 3d 12h
 
 If the filled bar ends **before** the marker, usage is running faster than the elapsed-time pace. If it extends **past** the marker, usage is below that pace.
 
-The bar color also reflects pace:
+For the normal Codex quota rows, the bar color also reflects pace:
 
 - green: on or below pace
 - orange: slightly ahead of pace
 - red: significantly ahead of pace, or 10% or less quota remains
+
+## Luna Reserve
+
+When `/backend-api/wham/usage` includes a matching entry in `additional_rate_limits`, the widget adds a third row for Luna Reserve after the normal short-window and weekly rows.
+
+The implementation recognizes Luna Reserve when either of these fields matches:
+
+```text
+limit_name        = gpt-reserve
+normal_model_slug = gpt-5.6-luna
+```
+
+The Luna row intentionally follows the ChatGPT UI treatment rather than the normal pace colors:
+
+- `moon.fill` icon in yellow
+- progress fill fixed to `#FFD240`
+- remaining percentage kept in the normal foreground color
+- the existing pace marker is still shown
+- reset time is calculated from Luna's own `primary_window`
+
+Example:
+
+```text
+🌙 Luna Reserve                16%
+███        ┃────────────────
+Reset 6d 21h
+```
+
+If no matching `additional_rate_limits` entry is present, the Luna row is omitted. Detection does not depend on `rate_limit_upsell.banner_type`.
 
 ## Requirements
 
@@ -188,7 +218,7 @@ POST https://auth.openai.com/oauth/token
 GET  https://chatgpt.com/backend-api/wham/usage
 ```
 
-The usage endpoint is not a documented public OpenAI API. The implementation can therefore break without notice.
+The usage endpoint is not a documented public OpenAI API. The implementation can therefore break without notice, including the shape or presence of `additional_rate_limits` used for Luna Reserve detection.
 
 ## Disclaimer
 

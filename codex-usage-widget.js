@@ -12,6 +12,7 @@ const USAGE_PAGE_URL = "https://chatgpt.com/codex/settings/usage";
 
 const REFRESH_MINUTES = 15;
 const REFRESH_BEFORE_SECONDS = 5 * 60;
+const LUNA_YELLOW = new Color("#FFD240");
 
 const KEY_ACCESS_TOKEN = "codex-usage-widget.access-token";
 const KEY_REFRESH_TOKEN = "codex-usage-widget.refresh-token";
@@ -208,6 +209,16 @@ async function fetchUsage(accessToken, accountId) {
   return JSON.parse(body);
 }
 
+function getLunaReserve(data) {
+  return (
+    data?.additional_rate_limits?.find(
+      (item) =>
+        item?.limit_name === "gpt-reserve" ||
+        item?.normal_model_slug === "gpt-5.6-luna"
+    ) || null
+  );
+}
+
 // -----------------------------------------------------------------------------
 // JWT helpers
 // -----------------------------------------------------------------------------
@@ -283,25 +294,58 @@ function createUsageWidget(data) {
 
   widget.addSpacer(9);
 
-  const windows = [
-    data?.rate_limit?.primary_window,
-    data?.rate_limit?.secondary_window,
-  ]
-    .filter(Boolean)
-    .sort(
-      (a, b) =>
-        Number(a.limit_window_seconds || 0) -
-        Number(b.limit_window_seconds || 0)
-    );
+  const rows = [];
 
-  if (windows.length === 0) {
+  if (data?.rate_limit?.primary_window) {
+    const window = data.rate_limit.primary_window;
+    rows.push({
+      label: getWindowLabel(window.limit_window_seconds),
+      window,
+      isLuna: false,
+    });
+  }
+
+  if (data?.rate_limit?.secondary_window) {
+    const window = data.rate_limit.secondary_window;
+    rows.push({
+      label: getWindowLabel(window.limit_window_seconds),
+      window,
+      isLuna: false,
+    });
+  }
+
+  // Regular quota: short window first, weekly second.
+  rows.sort(
+    (a, b) =>
+      Number(a.window.limit_window_seconds || 0) -
+      Number(b.window.limit_window_seconds || 0)
+  );
+
+  const lunaReserve = getLunaReserve(data);
+  const lunaWindow = lunaReserve?.rate_limit?.primary_window;
+
+  if (lunaWindow) {
+    rows.push({
+      label: "Luna Reserve",
+      window: lunaWindow,
+      isLuna: true,
+    });
+  }
+
+  if (rows.length === 0) {
     const noData = widget.addText("No usage data");
     noData.font = Font.systemFont(11);
     noData.textColor = new Color("#8E8E93");
   } else {
-    windows.slice(0, 2).forEach((window, index) => {
-      addUsageRow(widget, window);
-      if (index < Math.min(windows.length, 2) - 1) widget.addSpacer(8);
+    rows.slice(0, 3).forEach((item, index) => {
+      addUsageRow(widget, item.window, {
+        label: item.label,
+        isLuna: item.isLuna,
+      });
+
+      if (index < Math.min(rows.length, 3) - 1) {
+        widget.addSpacer(4);
+      }
     });
   }
 
@@ -328,7 +372,9 @@ function createUsageWidget(data) {
   return widget;
 }
 
-function addUsageRow(parent, window) {
+function addUsageRow(parent, window, options = {}) {
+  const { label = null, isLuna = false } = options;
+
   const used = clamp(Number(window.used_percent ?? 0), 0, 100);
   const remaining = clamp(100 - used, 0, 100);
   const elapsed = getElapsedPercent(window);
@@ -339,9 +385,19 @@ function addUsageRow(parent, window) {
   row.layoutHorizontally();
   row.centerAlignContent();
 
-  const label = row.addText(getWindowLabel(window.limit_window_seconds));
-  label.font = Font.mediumSystemFont(10);
-  label.textColor = Color.dynamic(
+  if (isLuna) {
+    const symbol = SFSymbol.named("moon.fill");
+    const icon = row.addImage(symbol.image);
+    icon.imageSize = new Size(9, 9);
+    icon.tintColor = LUNA_YELLOW;
+    row.addSpacer(3);
+  }
+
+  const labelText = row.addText(
+    label || getWindowLabel(window.limit_window_seconds)
+  );
+  labelText.font = Font.mediumSystemFont(10);
+  labelText.textColor = Color.dynamic(
     new Color("#3A3A3C"),
     new Color("#EBEBF5")
   );
@@ -350,16 +406,23 @@ function addUsageRow(parent, window) {
 
   const remainingText = row.addText(`${Math.round(remaining)}%`);
   remainingText.font = Font.semiboldSystemFont(11);
-  remainingText.textColor = getRemainingColor(remaining, paceDelta);
+  remainingText.textColor = isLuna
+    ? Color.dynamic(new Color("#1D1D1F"), new Color("#FFFFFF"))
+    : getRemainingColor(remaining, paceDelta);
 
-  parent.addSpacer(4);
+  parent.addSpacer(2);
 
   const image = parent.addImage(
-    createPaceBar(remaining, expectedRemaining, paceDelta)
+    createPaceBar(
+      remaining,
+      expectedRemaining,
+      paceDelta,
+      isLuna ? LUNA_YELLOW : null
+    )
   );
   image.imageSize = new Size(120, 7);
 
-  parent.addSpacer(3);
+  parent.addSpacer(1);
 
   const reset = parent.addText(getResetDescription(window));
   reset.font = Font.systemFont(8);
@@ -369,7 +432,12 @@ function addUsageRow(parent, window) {
 // Rounded remaining-quota bar.
 // Fill = actual remaining quota.
 // Short marker = expected remaining quota if usage were uniform over the window.
-function createPaceBar(remainingPercent, expectedRemainingPercent, paceDelta) {
+function createPaceBar(
+  remainingPercent,
+  expectedRemainingPercent,
+  paceDelta,
+  fillColor = null
+) {
   const width = 240;
   const height = 14;
   const barY = 2;
@@ -413,7 +481,7 @@ function createPaceBar(remainingPercent, expectedRemainingPercent, paceDelta) {
       radius
     );
     ctx.addPath(fillPath);
-    ctx.setFillColor(getUsageBarColor(paceDelta));
+    ctx.setFillColor(fillColor || getUsageBarColor(paceDelta));
     ctx.fillPath();
   }
 

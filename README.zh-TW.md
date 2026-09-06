@@ -8,6 +8,7 @@ Widget 會顯示：
 
 - 目前短週期（例如 5 小時）的剩餘額度
 - Weekly 剩餘額度
+- usage endpoint 有回報時顯示 Luna Reserve 額度
 - 各週期的重置時間
 - 依時間進度計算的使用速度 marker，快速看出目前是否用得太快
 - 可用的 rate-limit reset 券數量
@@ -33,11 +34,40 @@ Reset 3d 12h
 
 如果填滿區域的尾端在 marker **左邊**，代表目前用量速度比時間進度快；如果超過 marker，代表目前用量速度較慢。
 
-顏色也會反映使用速度：
+一般 Codex quota row 的顏色也會反映使用速度：
 
 - 綠色：正常或低於均勻速度
 - 橘色：稍微超前
 - 紅色：明顯超前，或剩餘額度低於等於 10%
+
+## Luna Reserve
+
+當 `/backend-api/wham/usage` 的 `additional_rate_limits` 中存在符合條件的項目時，Widget 會在一般短週期與 Weekly quota 後面加上第三列 Luna Reserve。
+
+只要下列任一欄位符合就會識別為 Luna Reserve：
+
+```text
+limit_name        = gpt-reserve
+normal_model_slug = gpt-5.6-luna
+```
+
+Luna row 會採用接近 ChatGPT 官方畫面的視覺，而不是一般 quota 的 pace 顏色：
+
+- 前方使用黃色 `moon.fill`
+- progress bar 固定使用 `#FFD240`
+- 剩餘百分比維持一般前景色，不改成黃色
+- 原本的 pace marker 繼續保留
+- reset time 使用 Luna 自己的 `primary_window` 計算
+
+例如：
+
+```text
+🌙 Luna Reserve                16%
+███        ┃────────────────
+Reset 6d 21h
+```
+
+如果 `additional_rate_limits` 沒有符合項目，就不會顯示 Luna row。判斷不依賴 `rate_limit_upsell.banner_type`，避免 upsell UI 狀態造成誤判。
 
 ## 需求
 
@@ -188,7 +218,7 @@ POST https://auth.openai.com/oauth/token
 GET  https://chatgpt.com/backend-api/wham/usage
 ```
 
-`/wham/usage` 並不是 OpenAI 有正式文件的公開 API，因此 OpenAI 可以在沒有通知的情況下修改它。
+`/wham/usage` 並不是 OpenAI 有正式文件的公開 API，因此 OpenAI 可以在沒有通知的情況下修改它，包含 Luna Reserve 使用的 `additional_rate_limits` 欄位結構或是否存在。
 
 ## Disclaimer
 
